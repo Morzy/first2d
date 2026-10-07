@@ -9,6 +9,13 @@ var _species_lbl: Label
 var _talents_lbl: Label
 var _tech_btns:  Dictionary = {}   # tech_id → Button
 
+var _energy_lbl:   Label
+var _food_lbl:     Label
+var _minerals_lbl: Label
+
+var _main_view:  MarginContainer
+var _star_map:   StarMapScreen
+
 func _ready() -> void:
 	_build_ui()
 	GameState.points_changed.connect(_on_pts)
@@ -25,20 +32,20 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(PRESET_FULL_RECT)
 	add_child(bg)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(PRESET_FULL_RECT)
+	_main_view = MarginContainer.new()
+	_main_view.set_anchors_preset(PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 10)
-	add_child(margin)
+		_main_view.add_theme_constant_override("margin_" + side, 10)
+	add_child(_main_view)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
-	margin.add_child(root)
+	_main_view.add_child(root)
 
 	_h(root, "★  星 际 帝 国  ★", 20)
 	root.add_child(HSeparator.new())
 
-	# Resources
+	# Research resources
 	_h(root, "研究资源", 13)
 	var res_row := HBoxContainer.new()
 	res_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -61,6 +68,30 @@ func _build_ui() -> void:
 
 	root.add_child(HSeparator.new())
 
+	# Empire resources (from conquered planets)
+	_h(root, "帝国资源", 13)
+	var emp_row := HBoxContainer.new()
+	emp_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	emp_row.add_theme_constant_override("separation", 16)
+	root.add_child(emp_row)
+	_energy_lbl   = _lbl("能源: 0",  Color(1.0, 0.9, 0.3), 13)
+	_food_lbl     = _lbl("食物: 0",  Color(0.5, 1.0, 0.5), 13)
+	_minerals_lbl = _lbl("矿物: 0",  Color(0.8, 0.6, 1.0), 13)
+	emp_row.add_child(_energy_lbl)
+	emp_row.add_child(_food_lbl)
+	emp_row.add_child(_minerals_lbl)
+
+	root.add_child(HSeparator.new())
+
+	# Star map button
+	var map_btn := Button.new()
+	map_btn.text = "▶  星际地图"
+	map_btn.size_flags_horizontal = SIZE_EXPAND_FILL
+	map_btn.pressed.connect(_show_star_map)
+	root.add_child(map_btn)
+
+	root.add_child(HSeparator.new())
+
 	# Character
 	_h(root, "当前主角", 13)
 	_species_lbl = Label.new()
@@ -69,11 +100,6 @@ func _build_ui() -> void:
 	_talents_lbl = Label.new()
 	_talents_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(_talents_lbl)
-
-	var regen := Button.new()
-	regen.text = "重新生成主角"
-	regen.pressed.connect(GameState.regenerate_character)
-	root.add_child(regen)
 
 	root.add_child(HSeparator.new())
 
@@ -89,6 +115,13 @@ func _build_ui() -> void:
 	scroll.add_child(tech_vbox)
 	_build_tech_buttons(tech_vbox)
 
+	# Star map overlay (full-screen, hidden until opened)
+	_star_map = StarMapScreen.new()
+	_star_map.set_anchors_preset(PRESET_FULL_RECT)
+	_star_map.visible = false
+	_star_map.back_pressed.connect(_show_main)
+	add_child(_star_map)
+
 func _build_tech_buttons(container: VBoxContainer) -> void:
 	for tech_id: String in TechDB.DATA:
 		var btn := Button.new()
@@ -99,6 +132,16 @@ func _build_tech_buttons(container: VBoxContainer) -> void:
 		container.add_child(btn)
 		_tech_btns[tech_id] = btn
 
+# ── Screen transitions ────────────────────────────────────────────────────────
+
+func _show_star_map() -> void:
+	_main_view.visible = false
+	_star_map.visible  = true
+
+func _show_main() -> void:
+	_star_map.visible  = false
+	_main_view.visible = true
+
 # ── Signal handlers ───────────────────────────────────────────────────────────
 
 func _on_pts() -> void:
@@ -108,7 +151,10 @@ func _on_pts() -> void:
 	_rate_lbl.text = "产出/秒  理%.2f  工%.2f  社%.2f" % [
 		GameState.science_rate, GameState.engineering_rate, GameState.social_rate
 	]
-	_power_lbl.text = "帝国武力: %d" % int(GameState.empire_power)
+	_power_lbl.text    = "帝国武力: %d" % int(GameState.empire_power)
+	_energy_lbl.text   = "能源: "   + _fmt(GameState.energy)
+	_food_lbl.text     = "食物: "   + _fmt(GameState.food)
+	_minerals_lbl.text = "矿物: "   + _fmt(GameState.minerals)
 	for tid: String in _tech_btns:
 		if tid not in GameState.researched:
 			_tech_btns[tid].disabled = not GameState.can_research(tid)
